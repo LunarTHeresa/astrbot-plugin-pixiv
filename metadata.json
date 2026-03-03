@@ -1,0 +1,8 @@
+{
+  "name": "pixiv",
+  "version": "1.0.0",
+  "description": "Pixiv 图片和小说查看插件",
+  "author": "Your Name",
+  "main": "main.py",
+  "requirements": ["pixivpy3>=3.7.0", "aiohttp>=3.8.0"]
+}
