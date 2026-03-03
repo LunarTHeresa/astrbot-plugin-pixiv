@@ -9,7 +9,7 @@ import asyncio
 from pixivpy3 import AppPixivAPI, PixivError
 from typing import Dict, Any, Optional
 
-@register("pixiv", "Pixiv 图片查看插件（官方API）", "3.0.0", "LunarTheresa")
+@register("pixiv", "Pixiv 图片查看插件（官方API）", "3.0.1", "LunarTheresa")
 class PixivPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)

@@ -1,11 +1,11 @@
 {
   "name": "pixiv",
-  "version": "3.0.0",
-  "description": "Pixiv 插件（官方API）- 搜索、排行榜、推荐，支持R18过滤",
+  "version": "3.0.1",
+  "description": "Pixiv 插件（官方API）- 搜索、排行榜、推荐，分离常规和R18指令",
   "author": "LunarTheresa",
   "repo": "https://github.com/LunarTHeresa/astrbot-plugin-pixiv",
   "main": "main.py",
   "requirements": ["pixivpy3>=3.7.0"],
-  "tags": ["pixiv", "图片", "插画", "官方API"],
+  "tags": ["pixiv", "图片", "插画", "官方API", "R18"],
   "homepage": "https://github.com/LunarTHeresa/astrbot-plugin-pixiv"
 }
