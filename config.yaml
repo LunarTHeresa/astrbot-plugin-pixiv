@@ -1,0 +1,19 @@
+# Pixiv 插件配置文件
+
+# 必填：Pixiv refresh_token
+# 获取方法：https://gist.github.com/ZipFile/c9ebedb224406f4f11845ab700124362
+refresh_token: ""
+
+# R18 过滤模式
+# 可选值：
+#   - "过滤 R18" (默认) - 不显示R18内容
+#   - "允许 R18" - 显示所有内容
+#   - "仅 R18" - 只显示R18内容
+r18_mode: "过滤 R18"
+
+# 每次返回的图片数量 (1-10)
+return_count: 1
+
+# 代理设置（可选）
+# 示例：http://127.0.0.1:7890
+proxy: ""
