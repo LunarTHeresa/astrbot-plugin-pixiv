@@ -4,9 +4,10 @@ AstrBot Pixiv 插件 - 无需 Token 版本
 """
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
+from astrbot.api import logger
 import httpx
 
-@register("pixiv", "Pixiv 图片和小说查看插件（无需Token）", "2.0.3", "LunarTheresa")
+@register("pixiv", "Pixiv 图片和小说查看插件（无需Token）", "2.0.4", "LunarTheresa")
 class PixivPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -21,7 +22,7 @@ class PixivPlugin(Star):
             "Accept": "application/json"
         }
         self.client = httpx.AsyncClient(timeout=30.0, headers=headers)
-        self.context.logger.info("Pixiv 插件已加载（无需Token）")
+        logger.info("Pixiv 插件已加载（无需Token）")
 
     @filter.command("pixiv")
     async def pixiv_search(self, event: AstrMessageEvent):
@@ -68,7 +69,7 @@ class PixivPlugin(Star):
             yield event.plain_result(msg)
 
         except Exception as e:
-            self.context.logger.error(f"搜索插画失败: {e}")
+            logger.error(f"搜索插画失败: {e}")
             yield event.plain_result(f"搜索失败，请稍后重试")
 
     @filter.command("pixiv-r18")
@@ -115,7 +116,7 @@ class PixivPlugin(Star):
             yield event.plain_result(msg)
 
         except Exception as e:
-            self.context.logger.error(f"搜索插画失败: {e}")
+            logger.error(f"搜索插画失败: {e}")
             yield event.plain_result(f"搜索失败，请稍后重试")
 
     @filter.command("pixiv-rank")
@@ -151,7 +152,7 @@ class PixivPlugin(Star):
             yield event.plain_result(msg)
 
         except Exception as e:
-            self.context.logger.error(f"获取排行榜失败: {e}")
+            logger.error(f"获取排行榜失败: {e}")
             yield event.plain_result(f"获取排行榜失败，请稍后重试")
 
     @filter.command("pixiv-rank-r18")
@@ -190,7 +191,7 @@ class PixivPlugin(Star):
             yield event.plain_result(msg)
 
         except Exception as e:
-            self.context.logger.error(f"获取排行榜失败: {e}")
+            logger.error(f"获取排行榜失败: {e}")
             yield event.plain_result(f"获取排行榜失败，请稍后重试")
 
     @filter.command("pixiv-detail")
@@ -237,7 +238,7 @@ class PixivPlugin(Star):
             yield event.plain_result(msg)
 
         except Exception as e:
-            self.context.logger.error(f"获取作品详情失败: {e}")
+            logger.error(f"获取作品详情失败: {e}")
             yield event.plain_result(f"获取作品详情失败，请稍后重试")
 
     @filter.command("pixiv-recommend")
@@ -272,7 +273,7 @@ class PixivPlugin(Star):
             yield event.plain_result(msg)
 
         except Exception as e:
-            self.context.logger.error(f"获取推荐作品失败: {e}")
+            logger.error(f"获取推荐作品失败: {e}")
             yield event.plain_result(f"获取推荐作品失败，请稍后重试")
 
     @filter.command("pixiv-recommend-r18")
@@ -306,7 +307,7 @@ class PixivPlugin(Star):
             yield event.plain_result(msg)
 
         except Exception as e:
-            self.context.logger.error(f"获取推荐作品失败: {e}")
+            logger.error(f"获取推荐作品失败: {e}")
             yield event.plain_result(f"获取推荐作品失败，请稍后重试")
 
     @filter.command("pixiv-random")
@@ -339,7 +340,7 @@ class PixivPlugin(Star):
             yield event.plain_result(msg)
 
         except Exception as e:
-            self.context.logger.error(f"获取随机图片失败: {e}")
+            logger.error(f"获取随机图片失败: {e}")
             yield event.plain_result(f"获取随机图片失败，请稍后重试")
 
     @filter.command("pixiv-random-r18")
@@ -374,11 +375,11 @@ class PixivPlugin(Star):
             yield event.plain_result(msg)
 
         except Exception as e:
-            self.context.logger.error(f"获取随机图片失败: {e}")
+            logger.error(f"获取随机图片失败: {e}")
             yield event.plain_result(f"获取随机图片失败，请稍后重试")
 
     async def terminate(self):
         """插件卸载时调用"""
         if self.client:
             await self.client.aclose()
-        self.context.logger.info("Pixiv 插件已卸载")
+        logger.info("Pixiv 插件已卸载")
