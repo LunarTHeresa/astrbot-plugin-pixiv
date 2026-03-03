@@ -33,27 +33,10 @@ https://github.com/LunarTHeresa/astrbot-plugin-pixiv
 
 **必须配置 refresh_token 才能使用插件！**
 
-#### 方法一：使用 gppt 工具（推荐）
-
-```bash
-pip install gppt
-gppt
-```
-
-按照提示登录 Pixiv 账号，自动获取 refresh_token。
-
-#### 方法二：手动获取
-
-1. 打开浏览器开发者工具（F12）
-2. 访问 Pixiv 登录页面
-3. 登录后在 Network 中找到 refresh_token
-4. 详细教程：[GET_TOKEN.md](./GET_TOKEN.md)
-
-#### 方法三：参考官方教程
-
-访问 https://gist.github.com/ZipFile/c9ebedb224406f4f11845ab700124362
-
-获取到 token 后，在 AstrBot WebUI 的插件配置中填写。
+获取方法：
+1. 访问 https://gist.github.com/ZipFile/c9ebedb224406f4f11845ab700124362
+2. 按照教程获取你的 refresh_token
+3. 在 AstrBot WebUI 的插件配置中填写
 
 ### 配置选项
 
