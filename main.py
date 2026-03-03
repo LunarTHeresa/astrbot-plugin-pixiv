@@ -15,8 +15,9 @@ class PixivPlugin(Star):
         super().__init__(context)
         self.api = AppPixivAPI()
         self.config = self._load_config()
-        self.refresh_token = self.config.get("refresh_token", "")
-        self.r18_mode = self.config.get("r18_mode", "过滤 R18")  # "过滤 R18" | "允许 R18" | "仅 R18"
+        # 默认 refresh_token（可通过配置覆盖）
+        self.refresh_token = self.config.get("refresh_token", "PsamcKHObWOhaTvoA3CsMOM-a_3xBIRJeirDr08VuHU")
+        self.r18_mode = self.config.get("r18_mode", "允许 R18")  # "过滤 R18" | "允许 R18" | "仅 R18"
         self.return_count = self.config.get("return_count", 1)
         self.proxy = self.config.get("proxy", "")
         self.authenticated = False
