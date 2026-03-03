@@ -1,6 +1,6 @@
 {
   "name": "pixiv",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "description": "Pixiv 插件（无需Token）- 搜索、排行榜、推荐，支持R18",
   "author": "LunarTheresa",
   "repo": "https://github.com/LunarTHeresa/astrbot-plugin-pixiv",

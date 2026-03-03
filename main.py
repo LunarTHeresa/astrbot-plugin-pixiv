@@ -55,7 +55,7 @@ class PixivPlugin(Star):
                 yield event.plain_result("未找到相关插画")
                 return
 
-            illusts = [i for i in data["illusts"][:10] if i.get("x_restrict", 0) == 0]
+            illusts = [i for i in data["illusts"][:5] if i.get("x_restrict", 0) == 0]
 
             if not illusts:
                 yield event.plain_result("未找到符合条件的插画")
@@ -67,10 +67,9 @@ class PixivPlugin(Star):
                 msg += f"   作者: {illust.get('user', {}).get('name', '未知')}\n"
                 msg += f"   ID: {illust.get('id')}\n"
                 tags = [tag.get('name', '') for tag in illust.get('tags', [])[:5]]
-                msg += f"   标签: {', '.join(tags)}\n"
-                msg += f"   链接: https://www.pixiv.net/artworks/{illust.get('id')}\n\n"
+                msg += f"   标签: {', '.join(tags)}\n\n"
 
-            msg += "使用 /pixiv-detail <ID> 查看详情"
+            msg += "使用 /pixiv-detail <ID> 查看详情和图片"
             yield event.plain_result(msg)
 
         except Exception as e:
@@ -103,7 +102,7 @@ class PixivPlugin(Star):
                 yield event.plain_result("未找到相关插画")
                 return
 
-            illusts = data["illusts"][:10]
+            illusts = data["illusts"][:5]
 
             msg = f"找到 {len(illusts)} 个结果:\n\n"
             for idx, illust in enumerate(illusts, 1):
@@ -112,12 +111,11 @@ class PixivPlugin(Star):
                 msg += f"   ID: {illust.get('id')}\n"
                 tags = [tag.get('name', '') for tag in illust.get('tags', [])[:5]]
                 msg += f"   标签: {', '.join(tags)}\n"
-                msg += f"   链接: https://www.pixiv.net/artworks/{illust.get('id')}\n"
                 if illust.get("x_restrict", 0) > 0:
                     msg += f"   ⚠️ R-18\n"
                 msg += "\n"
 
-            msg += "使用 /pixiv-detail <ID> 查看详情"
+            msg += "使用 /pixiv-detail <ID> 查看详情和图片"
             yield event.plain_result(msg)
 
         except Exception as e:
@@ -242,6 +240,16 @@ class PixivPlugin(Star):
 
             yield event.plain_result(msg)
 
+            # 发送图片
+            urls = illust.get("urls", {})
+            image_url = urls.get("original") or urls.get("regular")
+            if image_url:
+                # 替换域名以提高访问速度
+                image_url = image_url.replace("pixiv.yuki.sh", "i.yuki.sh")
+                yield event.image_result(image_url)
+            else:
+                yield event.plain_result("该作品无法获取图片（可能是小说或受限内容）")
+
         except Exception as e:
             logger.error(f"获取作品详情失败: {e}")
             yield event.plain_result(f"获取作品详情失败，请稍后重试")
@@ -334,6 +342,11 @@ class PixivPlugin(Star):
 
             illust = data["data"]
 
+            # 检查是否为R18内容
+            if illust.get("x_restrict", 0) > 0:
+                yield event.plain_result("该作品为R-18内容，请使用 /pixiv-random-r18")
+                return
+
             msg = f"随机图片:\n\n"
             msg += f"标题: {illust.get('title', '无标题')}\n"
             msg += f"作者: {illust.get('user', {}).get('name', '未知')}\n"
@@ -343,6 +356,16 @@ class PixivPlugin(Star):
             msg += f"链接: https://www.pixiv.net/artworks/{illust.get('id')}\n"
 
             yield event.plain_result(msg)
+
+            # 发送图片
+            urls = illust.get("urls", {})
+            image_url = urls.get("original") or urls.get("regular")
+            if image_url:
+                # 替换域名以提高访问速度
+                image_url = image_url.replace("pixiv.yuki.sh", "i.yuki.sh")
+                yield event.image_result(image_url)
+            else:
+                yield event.plain_result("无法获取图片URL")
 
         except Exception as e:
             logger.error(f"获取随机图片失败: {e}")
@@ -378,6 +401,16 @@ class PixivPlugin(Star):
                 msg += f"⚠️ R-18 内容\n"
 
             yield event.plain_result(msg)
+
+            # 发送图片
+            urls = illust.get("urls", {})
+            image_url = urls.get("original") or urls.get("regular")
+            if image_url:
+                # 替换域名以提高访问速度
+                image_url = image_url.replace("pixiv.yuki.sh", "i.yuki.sh")
+                yield event.image_result(image_url)
+            else:
+                yield event.plain_result("无法获取图片URL")
 
         except Exception as e:
             logger.error(f"获取随机图片失败: {e}")
