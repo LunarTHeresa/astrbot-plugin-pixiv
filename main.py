@@ -6,7 +6,7 @@ import os
 import asyncio
 from typing import List, Dict, Any
 from astrbot.api.star import Context, Star, register
-from astrbot.api.event import MessageEvent
+from astrbot.api.event import AstrMessageEvent
 from pixivpy3 import AppPixivAPI
 import json
 
@@ -41,7 +41,7 @@ class PixivPlugin(Star):
         except Exception as e:
             self.context.logger.error(f"Pixiv 登录失败: {e}")
 
-    async def on_message(self, event: MessageEvent):
+    async def on_message(self, event: AstrMessageEvent):
         """处理消息"""
         message = event.message_str.strip()
 
@@ -95,7 +95,7 @@ class PixivPlugin(Star):
         elif message == "/pixiv-recommend-r18":
             await self.get_recommend(event, r18=True)
 
-    async def search_illust(self, event: MessageEvent, keyword: str, r18: bool = False):
+    async def search_illust(self, event: AstrMessageEvent, keyword: str, r18: bool = False):
         """搜索插画"""
         try:
             await event.reply(f"正在搜索插画: {keyword}...")
@@ -134,7 +134,7 @@ class PixivPlugin(Star):
             self.context.logger.error(f"搜索插画失败: {e}")
             await event.reply(f"搜索失败: {str(e)}")
 
-    async def search_novel(self, event: MessageEvent, keyword: str, r18: bool = False):
+    async def search_novel(self, event: AstrMessageEvent, keyword: str, r18: bool = False):
         """搜索小说"""
         try:
             await event.reply(f"正在搜索小说: {keyword}...")
@@ -173,7 +173,7 @@ class PixivPlugin(Star):
             self.context.logger.error(f"搜索小说失败: {e}")
             await event.reply(f"搜索失败: {str(e)}")
 
-    async def get_ranking(self, event: MessageEvent, mode: str = "day", r18: bool = False):
+    async def get_ranking(self, event: AstrMessageEvent, mode: str = "day", r18: bool = False):
         """获取排行榜"""
         try:
             await event.reply(f"正在获取排行榜 ({mode})...")
@@ -202,7 +202,7 @@ class PixivPlugin(Star):
             self.context.logger.error(f"获取排行榜失败: {e}")
             await event.reply(f"获取排行榜失败: {str(e)}")
 
-    async def get_illust_detail(self, event: MessageEvent, illust_id: str):
+    async def get_illust_detail(self, event: AstrMessageEvent, illust_id: str):
         """获取作品详情"""
         try:
             await event.reply(f"正在获取作品详情: {illust_id}...")
@@ -237,7 +237,7 @@ class PixivPlugin(Star):
             self.context.logger.error(f"获取作品详情失败: {e}")
             await event.reply(f"获取作品详情失败: {str(e)}")
 
-    async def get_recommend(self, event: MessageEvent, r18: bool = False):
+    async def get_recommend(self, event: AstrMessageEvent, r18: bool = False):
         """获取推荐作品"""
         try:
             await event.reply("正在获取推荐作品...")
