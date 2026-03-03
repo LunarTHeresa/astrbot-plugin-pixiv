@@ -358,41 +358,51 @@ class PixivPlugin(Star):
 
     @filter.command("pixiv-recommend")
     async def pixiv_recommend(self, event: AstrMessageEvent):
-        """推荐作品"""
+        """推荐作品（使用yuki.sh API）"""
         try:
             yield event.plain_result("正在获取推荐作品...")
 
-            url = f"{self.api_base}/recommend"
+            url = f"{self.yuki_api}/recommend"
+            params = {"type": "json", "proxy": "pixiv.yuki.sh"}
 
-            resp = await self.client.get(url)
+            resp = await self.client.get(url, params=params)
             resp.raise_for_status()
             data = resp.json()
 
-            if not data.get("illusts"):
-                yield event.plain_result("未找到推荐作品")
+            if not data.get("success") or not data.get("data"):
+                yield event.plain_result("获取推荐作品失败")
                 return
 
-            illusts = [i for i in data["illusts"][:10] if i.get("x_restrict", 0) == 0]
+            illust = data["data"]
 
-            if not illusts:
-                yield event.plain_result("未找到符合条件的推荐作品")
+            # 检查是否为R18内容
+            if illust.get("x_restrict", 0) > 0:
+                yield event.plain_result("该作品为R-18内容，请使用 /pixiv-recommend-r18")
                 return
 
-            msg = f"推荐作品 ({len(illusts)} 个):\n\n"
-            for idx, illust in enumerate(illusts, 1):
-                msg += f"{idx}. {illust.get('title', '无标题')}\n"
-                msg += f"   作者: {illust.get('user', {}).get('name', '未知')}\n"
-                msg += f"   ID: {illust.get('id')}\n"
-                msg += f"   链接: https://www.pixiv.net/artworks/{illust.get('id')}\n\n"
+            msg = f"推荐作品:\n\n"
+            msg += f"标题: {illust.get('title', '无标题')}\n"
+            msg += f"作者: {illust.get('user', {}).get('name', '未知')}\n"
+            msg += f"ID: {illust.get('id')}\n"
+            tags = illust.get('tags', [])
+            msg += f"标签: {', '.join(tags[:5])}\n"
+            msg += f"链接: https://www.pixiv.net/artworks/{illust.get('id')}\n"
 
             yield event.plain_result(msg)
 
+            # 发送图片
+            urls = illust.get("urls", {})
+            image_url = urls.get("original") or urls.get("regular")
+            if image_url:
+                # 替换域名以提高访问速度
+                image_url = image_url.replace(self.old_domain, self.new_domain)
+                yield event.image_result(image_url)
+            else:
+                yield event.plain_result("无法获取图片URL")
+
         except httpx.HTTPStatusError as e:
             logger.error(f"推荐HTTP错误 {e.response.status_code}：{str(e)}")
-            if e.response.status_code == 530:
-                yield event.plain_result("推荐服务暂时不可用（api.obfs.dev 返回530错误），请稍后重试或使用 /pixiv-random 获取随机图片")
-            else:
-                yield event.plain_result(f"获取推荐作品失败（状态码：{e.response.status_code}），请稍后重试")
+            yield event.plain_result(f"获取推荐作品失败（状态码：{e.response.status_code}），请稍后重试")
         except httpx.TimeoutException:
             yield event.plain_result("推荐请求超时，请检查网络或稍后再试")
         except httpx.ConnectError:
@@ -403,40 +413,52 @@ class PixivPlugin(Star):
 
     @filter.command("pixiv-recommend-r18")
     async def pixiv_recommend_r18(self, event: AstrMessageEvent):
-        """推荐作品（R18）"""
+        """推荐作品（R18，使用yuki.sh API）"""
         try:
             yield event.plain_result("正在获取推荐作品...")
 
-            url = f"{self.api_base}/recommend"
+            url = f"{self.yuki_api}/recommend"
+            params = {"type": "json", "proxy": "pixiv.yuki.sh"}
 
-            resp = await self.client.get(url)
+            resp = await self.client.get(url, params=params)
             resp.raise_for_status()
             data = resp.json()
 
-            if not data.get("illusts"):
-                yield event.plain_result("未找到推荐作品")
+            if not data.get("success") or not data.get("data"):
+                yield event.plain_result("获取推荐作品失败")
                 return
 
-            illusts = data["illusts"][:10]
+            illust = data["data"]
 
-            msg = f"推荐作品 ({len(illusts)} 个):\n\n"
-            for idx, illust in enumerate(illusts, 1):
-                msg += f"{idx}. {illust.get('title', '无标题')}\n"
-                msg += f"   作者: {illust.get('user', {}).get('name', '未知')}\n"
-                msg += f"   ID: {illust.get('id')}\n"
-                msg += f"   链接: https://www.pixiv.net/artworks/{illust.get('id')}\n"
-                if illust.get("x_restrict", 0) > 0:
-                    msg += f"   ⚠️ R-18\n"
-                msg += "\n"
+            msg = f"推荐作品:\n\n"
+            msg += f"标题: {illust.get('title', '无标题')}\n"
+            msg += f"作者: {illust.get('user', {}).get('name', '未知')}\n"
+            msg += f"ID: {illust.get('id')}\n"
+            tags = illust.get('tags', [])
+            msg += f"标签: {', '.join(tags[:5])}\n"
+            msg += f"链接: https://www.pixiv.net/artworks/{illust.get('id')}\n"
+            if illust.get("x_restrict", 0) > 0:
+                msg += f"⚠️ R-18 内容\n"
 
             yield event.plain_result(msg)
 
+            # 发送图片
+            urls = illust.get("urls", {})
+            image_url = urls.get("original") or urls.get("regular")
+            if image_url:
+                # 替换域名以提高访问速度
+                image_url = image_url.replace(self.old_domain, self.new_domain)
+                yield event.image_result(image_url)
+            else:
+                yield event.plain_result("无法获取图片URL")
+
         except httpx.HTTPStatusError as e:
             logger.error(f"推荐HTTP错误 {e.response.status_code}：{str(e)}")
-            if e.response.status_code == 530:
-                yield event.plain_result("推荐服务暂时不可用（api.obfs.dev 返回530错误），请稍后重试或使用 /pixiv-random-r18 获取随机图片")
-            else:
-                yield event.plain_result(f"获取推荐作品失败（状态码：{e.response.status_code}），请稍后重试")
+            yield event.plain_result(f"获取推荐作品失败（状态码：{e.response.status_code}），请稍后重试")
+        except httpx.TimeoutException:
+            yield event.plain_result("推荐请求超时，请检查网络或稍后再试")
+        except httpx.ConnectError:
+            yield event.plain_result("推荐服务连接失败，请检查网络或稍后再试")
         except httpx.TimeoutException:
             yield event.plain_result("推荐请求超时，请检查网络或稍后再试")
         except httpx.ConnectError:
