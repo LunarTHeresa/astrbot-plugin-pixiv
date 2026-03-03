@@ -15,13 +15,18 @@ class PixivPlugin(Star):
         self.yuki_api = "https://pixiv.yuki.sh/api"
         self.client = None
 
-    async def on_load(self):
-        """插件加载时调用"""
+    async def initialize(self):
+        """初始化：创建复用的 httpx 异步客户端"""
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "application/json"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "application/json",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"
         }
-        self.client = httpx.AsyncClient(timeout=30.0, headers=headers)
+        self.client = httpx.AsyncClient(
+            timeout=httpx.Timeout(30.0),
+            headers=headers,
+            follow_redirects=True
+        )
         logger.info("Pixiv 插件已加载（无需Token）")
 
     @filter.command("pixiv")
@@ -380,6 +385,10 @@ class PixivPlugin(Star):
 
     async def terminate(self):
         """插件卸载时调用"""
-        if self.client:
-            await self.client.aclose()
+        if self.client and not self.client.is_closed:
+            try:
+                await self.client.aclose()
+                logger.info("已关闭 httpx 异步客户端")
+            except Exception as e:
+                logger.error(f"关闭客户端失败：{str(e)}")
         logger.info("Pixiv 插件已卸载")
