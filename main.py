@@ -17,9 +17,9 @@ class PixivPlugin(Star):
         self.config = self._load_config()
         # 默认 refresh_token（可通过配置覆盖）
         self.refresh_token = self.config.get("refresh_token", "PsamcKHObWOhaTvoA3CsMOM-a_3xBIRJeirDr08VuHU")
-        self.r18_mode = self.config.get("r18_mode", "允许 R18")  # "过滤 R18" | "允许 R18" | "仅 R18"
+        self.r18_mode = self.config.get("r18_mode", "仅 R18")  # "过滤 R18" | "允许 R18" | "仅 R18"
         self.return_count = self.config.get("return_count", 1)
-        self.proxy = self.config.get("proxy", "")
+        self.proxy = self.config.get("proxy", "http://127.0.0.1:7897")  # Clash Verge 代理
         self.authenticated = False
 
     def _load_config(self) -> Dict[str, Any]:
@@ -39,7 +39,8 @@ class PixivPlugin(Star):
         try:
             # 设置代理
             if self.proxy:
-                self.api.set_additional_headers({'Proxy': self.proxy})
+                self.api.set_proxy(self.proxy)
+                logger.info(f"Pixiv 插件：使用代理 {self.proxy}")
 
             # 认证
             await asyncio.to_thread(self.api.auth, refresh_token=self.refresh_token)
