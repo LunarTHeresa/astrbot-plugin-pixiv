@@ -8,7 +8,7 @@ from astrbot.api import logger
 import asyncio
 import httpx
 
-@register("pixiv", "Pixiv 图片和小说查看插件（无需Token）", "2.1.0", "LunarTheresa")
+@register("pixiv", "Pixiv 图片和小说查看插件（无需Token）", "2.1.1", "LunarTheresa")
 class PixivPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -455,10 +455,6 @@ class PixivPlugin(Star):
         except httpx.HTTPStatusError as e:
             logger.error(f"推荐HTTP错误 {e.response.status_code}：{str(e)}")
             yield event.plain_result(f"获取推荐作品失败（状态码：{e.response.status_code}），请稍后重试")
-        except httpx.TimeoutException:
-            yield event.plain_result("推荐请求超时，请检查网络或稍后再试")
-        except httpx.ConnectError:
-            yield event.plain_result("推荐服务连接失败，请检查网络或稍后再试")
         except httpx.TimeoutException:
             yield event.plain_result("推荐请求超时，请检查网络或稍后再试")
         except httpx.ConnectError:
