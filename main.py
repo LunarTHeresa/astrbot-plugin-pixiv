@@ -1,74 +1,43 @@
 """
-AstrBot Pixiv 插件
-支持查看 Pixiv 图片和小说
+AstrBot Pixiv 插件 - 无需 Token 版本
+使用第三方 API，支持搜索、排行榜、推荐等功能
 """
-import os
-import asyncio
-from typing import List, Dict, Any
-from astrbot.api.star import Context, Star, register
 from astrbot.api.event import AstrMessageEvent
-from pixivpy3 import AppPixivAPI
-import json
+from astrbot.api.star import Context, Star, register
+import httpx
+import asyncio
 
-@register("pixiv", "Pixiv 图片和小说查看插件", "1.0.0", "LunarTheresa")
+@register("pixiv", "Pixiv 图片和小说查看插件（无需Token）", "2.0.0", "LunarTheresa")
 class PixivPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
-        self.api = AppPixivAPI()
-        self.config = {}
-        self.is_logged_in = False
+        # 使用多个第三方 API
+        self.api_base = "https://api.obfs.dev/api/pixiv"  # 主 API
+        self.yuki_api = "https://pixiv.yuki.sh/api"  # 备用 API
+        self.client = None
 
     async def on_load(self):
         """插件加载时调用"""
-        # 加载配置
-        config_path = os.path.join(os.path.dirname(__file__), "config.json")
-        if os.path.exists(config_path):
-            with open(config_path, 'r', encoding='utf-8') as f:
-                self.config = json.load(f)
-        else:
-            self.context.logger.warning("Pixiv 插件配置文件不存在，请创建 config.json")
-            return
-
-        # 登录 Pixiv
-        try:
-            refresh_token = self.config.get("refresh_token", "")
-            if refresh_token and refresh_token != "YOUR_PIXIV_REFRESH_TOKEN_HERE":
-                self.api.auth(refresh_token=refresh_token)
-                self.is_logged_in = True
-                self.context.logger.info("Pixiv 插件登录成功")
-            else:
-                self.context.logger.warning("未配置 Pixiv refresh_token")
-        except Exception as e:
-            self.context.logger.error(f"Pixiv 登录失败: {e}")
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "application/json"
+        }
+        self.client = httpx.AsyncClient(timeout=30.0, headers=headers)
+        self.context.logger.info("Pixiv 插件已加载（无需Token）")
 
     async def on_message(self, event: AstrMessageEvent):
         """处理消息"""
         message = event.message_str.strip()
 
-        if not self.is_logged_in:
-            if message.startswith("/pixiv"):
-                await event.reply("Pixiv 插件未登录，请配置 refresh_token")
-            return
-
-        # 搜索图片
+        # 搜索插画
         if message.startswith("/pixiv "):
             keyword = message[7:].strip()
             await self.search_illust(event, keyword, r18=False)
 
-        # 搜索图片（包含 R18）
+        # 搜索插画（包含 R18）
         elif message.startswith("/pixiv-r18 "):
             keyword = message[11:].strip()
             await self.search_illust(event, keyword, r18=True)
-
-        # 搜索小说
-        elif message.startswith("/pixiv-novel "):
-            keyword = message[13:].strip()
-            await self.search_novel(event, keyword, r18=False)
-
-        # 搜索小说（包含 R18）
-        elif message.startswith("/pixiv-novel-r18 "):
-            keyword = message[17:].strip()
-            await self.search_novel(event, keyword, r18=True)
 
         # 获取排行榜
         elif message.startswith("/pixiv-rank"):
@@ -95,35 +64,47 @@ class PixivPlugin(Star):
         elif message == "/pixiv-recommend-r18":
             await self.get_recommend(event, r18=True)
 
+        # 随机图片
+        elif message == "/pixiv-random":
+            await self.get_random(event, r18=False)
+
+        # 随机图片（R18）
+        elif message == "/pixiv-random-r18":
+            await self.get_random(event, r18=True)
+
     async def search_illust(self, event: AstrMessageEvent, keyword: str, r18: bool = False):
         """搜索插画"""
         try:
             await event.reply(f"正在搜索插画: {keyword}...")
 
-            result = self.api.search_illust(keyword, search_target='partial_match_for_tags')
+            url = f"{self.api_base}/search"
+            params = {"word": keyword, "mode": "partial_match_for_tags"}
 
-            if not result.illusts:
+            resp = await self.client.get(url, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if not data.get("illusts"):
                 await event.reply("未找到相关插画")
                 return
 
-            # 过滤结果
-            illusts = result.illusts[:10]  # 限制返回数量
+            illusts = data["illusts"][:10]
             if not r18:
-                illusts = [i for i in illusts if i.x_restrict == 0]
+                illusts = [i for i in illusts if i.get("x_restrict", 0) == 0]
 
             if not illusts:
                 await event.reply("未找到符合条件的插画")
                 return
 
-            # 构建消息
             msg = f"找到 {len(illusts)} 个结果:\n\n"
             for idx, illust in enumerate(illusts, 1):
-                msg += f"{idx}. {illust.title}\n"
-                msg += f"   作者: {illust.user.name}\n"
-                msg += f"   ID: {illust.id}\n"
-                msg += f"   标签: {', '.join([tag.name for tag in illust.tags[:5]])}\n"
-                msg += f"   链接: https://www.pixiv.net/artworks/{illust.id}\n"
-                if illust.x_restrict > 0:
+                msg += f"{idx}. {illust.get('title', '无标题')}\n"
+                msg += f"   作者: {illust.get('user', {}).get('name', '未知')}\n"
+                msg += f"   ID: {illust.get('id')}\n"
+                tags = [tag.get('name', '') for tag in illust.get('tags', [])[:5]]
+                msg += f"   标签: {', '.join(tags)}\n"
+                msg += f"   链接: https://www.pixiv.net/artworks/{illust.get('id')}\n"
+                if illust.get("x_restrict", 0) > 0:
                     msg += f"   ⚠️ R-18\n"
                 msg += "\n"
 
@@ -132,67 +113,33 @@ class PixivPlugin(Star):
 
         except Exception as e:
             self.context.logger.error(f"搜索插画失败: {e}")
-            await event.reply(f"搜索失败: {str(e)}")
-
-    async def search_novel(self, event: AstrMessageEvent, keyword: str, r18: bool = False):
-        """搜索小说"""
-        try:
-            await event.reply(f"正在搜索小说: {keyword}...")
-
-            result = self.api.search_novel(keyword, search_target='partial_match_for_tags')
-
-            if not result.novels:
-                await event.reply("未找到相关小说")
-                return
-
-            # 过滤结果
-            novels = result.novels[:10]
-            if not r18:
-                novels = [n for n in novels if n.x_restrict == 0]
-
-            if not novels:
-                await event.reply("未找到符合条件的小说")
-                return
-
-            # 构建消息
-            msg = f"找到 {len(novels)} 个结果:\n\n"
-            for idx, novel in enumerate(novels, 1):
-                msg += f"{idx}. {novel.title}\n"
-                msg += f"   作者: {novel.user.name}\n"
-                msg += f"   ID: {novel.id}\n"
-                msg += f"   字数: {novel.text_length}\n"
-                msg += f"   标签: {', '.join([tag.name for tag in novel.tags[:5]])}\n"
-                msg += f"   链接: https://www.pixiv.net/novel/show.php?id={novel.id}\n"
-                if novel.x_restrict > 0:
-                    msg += f"   ⚠️ R-18\n"
-                msg += "\n"
-
-            await event.reply(msg)
-
-        except Exception as e:
-            self.context.logger.error(f"搜索小说失败: {e}")
-            await event.reply(f"搜索失败: {str(e)}")
+            await event.reply(f"搜索失败，请稍后重试")
 
     async def get_ranking(self, event: AstrMessageEvent, mode: str = "day", r18: bool = False):
         """获取排行榜"""
         try:
             await event.reply(f"正在获取排行榜 ({mode})...")
 
-            result = self.api.illust_ranking(mode=mode)
+            url = f"{self.api_base}/rank"
+            params = {"mode": mode}
 
-            if not result.illusts:
+            resp = await self.client.get(url, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if not data.get("illusts"):
                 await event.reply("未找到排行榜数据")
                 return
 
-            illusts = result.illusts[:10]
+            illusts = data["illusts"][:10]
 
             msg = f"排行榜 ({mode}) 前 {len(illusts)} 名:\n\n"
             for idx, illust in enumerate(illusts, 1):
-                msg += f"{idx}. {illust.title}\n"
-                msg += f"   作者: {illust.user.name}\n"
-                msg += f"   ID: {illust.id}\n"
-                msg += f"   链接: https://www.pixiv.net/artworks/{illust.id}\n"
-                if illust.x_restrict > 0:
+                msg += f"{idx}. {illust.get('title', '无标题')}\n"
+                msg += f"   作者: {illust.get('user', {}).get('name', '未知')}\n"
+                msg += f"   ID: {illust.get('id')}\n"
+                msg += f"   链接: https://www.pixiv.net/artworks/{illust.get('id')}\n"
+                if illust.get("x_restrict", 0) > 0:
                     msg += f"   ⚠️ R-18\n"
                 msg += "\n"
 
@@ -200,57 +147,64 @@ class PixivPlugin(Star):
 
         except Exception as e:
             self.context.logger.error(f"获取排行榜失败: {e}")
-            await event.reply(f"获取排行榜失败: {str(e)}")
+            await event.reply(f"获取排行榜失败，请稍后重试")
 
     async def get_illust_detail(self, event: AstrMessageEvent, illust_id: str):
         """获取作品详情"""
         try:
             await event.reply(f"正在获取作品详情: {illust_id}...")
 
-            result = self.api.illust_detail(illust_id)
-            illust = result.illust
+            # 使用 yuki API 获取详情
+            url = f"{self.yuki_api}/illust"
+            params = {"id": illust_id}
 
-            if not illust:
+            resp = await self.client.get(url, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if not data.get("success") or not data.get("data"):
                 await event.reply("未找到该作品")
                 return
 
+            illust = data["data"]
+
             msg = f"作品详情:\n\n"
-            msg += f"标题: {illust.title}\n"
-            msg += f"作者: {illust.user.name}\n"
-            msg += f"ID: {illust.id}\n"
-            msg += f"类型: {illust.type}\n"
-            msg += f"创建时间: {illust.create_date}\n"
-            msg += f"浏览数: {illust.total_view}\n"
-            msg += f"收藏数: {illust.total_bookmarks}\n"
-            msg += f"标签: {', '.join([tag.name for tag in illust.tags])}\n"
-            msg += f"链接: https://www.pixiv.net/artworks/{illust.id}\n"
+            msg += f"标题: {illust.get('title', '无标题')}\n"
+            msg += f"作者: {illust.get('user', {}).get('name', '未知')}\n"
+            msg += f"ID: {illust.get('id')}\n"
+            msg += f"浏览数: {illust.get('total_view', 0)}\n"
+            msg += f"收藏数: {illust.get('total_bookmarks', 0)}\n"
+            tags = illust.get('tags', [])
+            msg += f"标签: {', '.join(tags)}\n"
+            msg += f"链接: https://www.pixiv.net/artworks/{illust.get('id')}\n"
 
-            if illust.x_restrict > 0:
+            if illust.get("x_restrict", 0) > 0:
                 msg += f"⚠️ R-18 内容\n"
-
-            if illust.caption:
-                msg += f"\n简介: {illust.caption[:200]}...\n"
 
             await event.reply(msg)
 
         except Exception as e:
             self.context.logger.error(f"获取作品详情失败: {e}")
-            await event.reply(f"获取作品详情失败: {str(e)}")
+            await event.reply(f"获取作品详情失败，请稍后重试")
 
     async def get_recommend(self, event: AstrMessageEvent, r18: bool = False):
         """获取推荐作品"""
         try:
             await event.reply("正在获取推荐作品...")
 
-            result = self.api.illust_recommended()
+            url = f"{self.api_base}/recommend"
 
-            if not result.illusts:
+            resp = await self.client.get(url)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if not data.get("illusts"):
                 await event.reply("未找到推荐作品")
                 return
 
-            illusts = result.illusts[:10]
+            illusts = data["illusts"][:10]
             if not r18:
-                illusts = [i for i in illusts if i.x_restrict == 0]
+                illusts = [i for i in illusts if i.get("x_restrict", 0) == 0]
 
             if not illusts:
                 await event.reply("未找到符合条件的推荐作品")
@@ -258,11 +212,11 @@ class PixivPlugin(Star):
 
             msg = f"推荐作品 ({len(illusts)} 个):\n\n"
             for idx, illust in enumerate(illusts, 1):
-                msg += f"{idx}. {illust.title}\n"
-                msg += f"   作者: {illust.user.name}\n"
-                msg += f"   ID: {illust.id}\n"
-                msg += f"   链接: https://www.pixiv.net/artworks/{illust.id}\n"
-                if illust.x_restrict > 0:
+                msg += f"{idx}. {illust.get('title', '无标题')}\n"
+                msg += f"   作者: {illust.get('user', {}).get('name', '未知')}\n"
+                msg += f"   ID: {illust.get('id')}\n"
+                msg += f"   链接: https://www.pixiv.net/artworks/{illust.get('id')}\n"
+                if illust.get("x_restrict", 0) > 0:
                     msg += f"   ⚠️ R-18\n"
                 msg += "\n"
 
@@ -270,5 +224,42 @@ class PixivPlugin(Star):
 
         except Exception as e:
             self.context.logger.error(f"获取推荐作品失败: {e}")
-            await event.reply(f"获取推荐作品失败: {str(e)}")
+            await event.reply(f"获取推荐作品失败，请稍后重试")
 
+    async def get_random(self, event: AstrMessageEvent, r18: bool = False):
+        """获取随机图片"""
+        try:
+            await event.reply("正在获取随机图片...")
+
+            url = f"{self.yuki_api}/recommend"
+            params = {"type": "json", "proxy": "pixiv.yuki.sh"}
+
+            resp = await self.client.get(url, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if not data.get("success") or not data.get("data"):
+                await event.reply("获取随机图片失败")
+                return
+
+            illust = data["data"]
+
+            msg = f"随机图片:\n\n"
+            msg += f"标题: {illust.get('title', '无标题')}\n"
+            msg += f"作者: {illust.get('user', {}).get('name', '未知')}\n"
+            msg += f"ID: {illust.get('id')}\n"
+            tags = illust.get('tags', [])
+            msg += f"标签: {', '.join(tags[:5])}\n"
+            msg += f"链接: https://www.pixiv.net/artworks/{illust.get('id')}\n"
+
+            await event.reply(msg)
+
+        except Exception as e:
+            self.context.logger.error(f"获取随机图片失败: {e}")
+            await event.reply(f"获取随机图片失败，请稍后重试")
+
+    async def terminate(self):
+        """插件卸载时调用"""
+        if self.client:
+            await self.client.aclose()
+        self.context.logger.info("Pixiv 插件已卸载")
