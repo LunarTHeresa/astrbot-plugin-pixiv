@@ -34,7 +34,7 @@ class PixivPlugin(Star):
             return
 
         keyword = " ".join(args[1:])
-        await self._search_illust(event, keyword, r18=False)
+        yield from self._search_illust(event, keyword, r18=False)
 
     @filter.command("pixiv-r18")
     async def pixiv_search_r18(self, event: AstrMessageEvent):
@@ -47,7 +47,7 @@ class PixivPlugin(Star):
             return
 
         keyword = " ".join(args[1:])
-        await self._search_illust(event, keyword, r18=True)
+        yield from self._search_illust(event, keyword, r18=True)
 
     @filter.command("pixiv-rank")
     async def pixiv_rank(self, event: AstrMessageEvent):
@@ -55,7 +55,7 @@ class PixivPlugin(Star):
         message = event.message_str.strip()
         args = message.split()
         mode = args[1] if len(args) > 1 else "day"
-        await self._get_ranking(event, mode, r18=False)
+        yield from self._get_ranking(event, mode, r18=False)
 
     @filter.command("pixiv-rank-r18")
     async def pixiv_rank_r18(self, event: AstrMessageEvent):
@@ -63,7 +63,7 @@ class PixivPlugin(Star):
         message = event.message_str.strip()
         args = message.split()
         mode = args[1] if len(args) > 1 else "day_r18"
-        await self._get_ranking(event, mode, r18=True)
+        yield from self._get_ranking(event, mode, r18=True)
 
     @filter.command("pixiv-detail")
     async def pixiv_detail(self, event: AstrMessageEvent):
@@ -76,29 +76,29 @@ class PixivPlugin(Star):
             return
 
         illust_id = args[1]
-        await self._get_illust_detail(event, illust_id)
+        yield from self._get_illust_detail(event, illust_id)
 
     @filter.command("pixiv-recommend")
     async def pixiv_recommend(self, event: AstrMessageEvent):
         """推荐作品"""
-        await self._get_recommend(event, r18=False)
+        yield from self._get_recommend(event, r18=False)
 
     @filter.command("pixiv-recommend-r18")
     async def pixiv_recommend_r18(self, event: AstrMessageEvent):
         """推荐作品（R18）"""
-        await self._get_recommend(event, r18=True)
+        yield from self._get_recommend(event, r18=True)
 
     @filter.command("pixiv-random")
     async def pixiv_random(self, event: AstrMessageEvent):
         """随机图片"""
-        await self._get_random(event, r18=False)
+        yield from self._get_random(event, r18=False)
 
     @filter.command("pixiv-random-r18")
     async def pixiv_random_r18(self, event: AstrMessageEvent):
         """随机图片（R18）"""
-        await self._get_random(event, r18=True)
+        yield from self._get_random(event, r18=True)
 
-    async def _search_illust(self, event: AstrMessageEvent, keyword: str, r18: bool = False):
+    def _search_illust(self, event: AstrMessageEvent, keyword: str, r18: bool = False):
         """搜索插画实现"""
         try:
             yield event.plain_result(f"正在搜索插画: {keyword}...")
@@ -141,7 +141,7 @@ class PixivPlugin(Star):
             self.context.logger.error(f"搜索插画失败: {e}")
             yield event.plain_result(f"搜索失败，请稍后重试")
 
-    async def _get_ranking(self, event: AstrMessageEvent, mode: str = "day", r18: bool = False):
+    def _get_ranking(self, event: AstrMessageEvent, mode: str = "day", r18: bool = False):
         """获取排行榜实现"""
         try:
             yield event.plain_result(f"正在获取排行榜 ({mode})...")
@@ -175,7 +175,7 @@ class PixivPlugin(Star):
             self.context.logger.error(f"获取排行榜失败: {e}")
             yield event.plain_result(f"获取排行榜失败，请稍后重试")
 
-    async def _get_illust_detail(self, event: AstrMessageEvent, illust_id: str):
+    def _get_illust_detail(self, event: AstrMessageEvent, illust_id: str):
         """获取作品详情实现"""
         try:
             yield event.plain_result(f"正在获取作品详情: {illust_id}...")
@@ -212,7 +212,7 @@ class PixivPlugin(Star):
             self.context.logger.error(f"获取作品详情失败: {e}")
             yield event.plain_result(f"获取作品详情失败，请稍后重试")
 
-    async def _get_recommend(self, event: AstrMessageEvent, r18: bool = False):
+    def _get_recommend(self, event: AstrMessageEvent, r18: bool = False):
         """获取推荐作品实现"""
         try:
             yield event.plain_result("正在获取推荐作品...")
@@ -251,7 +251,7 @@ class PixivPlugin(Star):
             self.context.logger.error(f"获取推荐作品失败: {e}")
             yield event.plain_result(f"获取推荐作品失败，请稍后重试")
 
-    async def _get_random(self, event: AstrMessageEvent, r18: bool = False):
+    def _get_random(self, event: AstrMessageEvent, r18: bool = False):
         """获取随机图片实现"""
         try:
             yield event.plain_result("正在获取随机图片...")
