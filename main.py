@@ -7,21 +7,19 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 import asyncio
-from pixivpy3 import AppPixivAPI, PixivError
+from pixivpy3 import ByPassSniApi, AppPixivAPI, PixivError
 from typing import Dict, Any, Optional
 
 # 默认配置
 DEFAULT_TOKEN = "PsamcKHObWOhaTvoA3CsMOM-a_3xBIRJeirDr08VuHU"
-DEFAULT_PROXY = ""  # 默认直连，不需要代理
 
-@register("pixiv", "Pixiv 图片查看插件（官方API）", "3.1.1", "LunarTheresa")
+@register("pixiv", "Pixiv 图片查看插件（官方API）", "3.2.0", "LunarTheresa")
 class PixivPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
         self.config = self._load_config()
         self.refresh_token = self.config.get("refresh_token", "") or DEFAULT_TOKEN
         self.return_count = self.config.get("return_count", 1)
-        self.proxy = self.config.get("proxy", "") or DEFAULT_PROXY  # 用户可在配置中设置代理
         self.authenticated = False
 
         # 只在用户主动配置代理时才使用，默认直连
@@ -31,29 +29,37 @@ class PixivPlugin(Star):
             self.api = AppPixivAPI()  # 直连
 
     def _load_config(self) -> Dict[str, Any]:
-        """加载配置"""
         try:
             return self.context.get_config()
         except Exception:
             return {}
 
-    async def initialize(self):
-        """初始化：认证 Pixiv API"""
-        if not self.refresh_token:
-            logger.error("Pixiv 插件：未配置 refresh_token，请在插件配置中填写")
-            return
+    def _create_api(self):
+        if self.proxy:
+            logger.info(f"Pixiv 插件：使用代理模式 {self.proxy}")
+            return AppPixivAPI(proxies={'https': self.proxy})
+        logger.info("Pixiv 插件：使用 ByPassSniApi 绕过模式")
+        api = ByPassSniApi()
+        hosts = api.require_appapi_hosts()
+        if hosts:
+            logger.info(f"Pixiv 插件：DNS over HTTPS 解析成功 -> {hosts}")
+        else:
+            logger.warning("Pixiv 插件：DoH 解析失败，尝试使用已知 IP")
+            api.hosts = "https://210.140.131.188"
+        return api
 
+    async def initialize(self):
+        if not self.refresh_token:
+            logger.error("Pixiv 插件：未配置 refresh_token")
+            return
         try:
+            self.api = await asyncio.to_thread(self._create_api)
             await asyncio.to_thread(self.api.auth, refresh_token=self.refresh_token)
             self.authenticated = True
-            logger.info(f"Pixiv 插件已加载（官方API）- 用户ID: {self.api.user_id}")
-            if self.proxy:
-                logger.info(f"Pixiv 插件：使用代理 {self.proxy}")
-            else:
-                logger.info("Pixiv 插件：直连模式（无代理）")
+            logger.info(f"Pixiv 插件已加载 - 用户ID: {self.api.user_id}")
         except PixivError as e:
             logger.error(f"Pixiv API 认证失败: {e}")
-            logger.error("请检查 refresh_token 是否正确")
+            logger.error("请检查 refresh_token 或配置 proxy")
         except Exception as e:
             logger.error(f"Pixiv 插件初始化失败: {e}", exc_info=True)
 
