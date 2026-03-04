@@ -20,13 +20,9 @@ class PixivPlugin(Star):
         self.config = self._load_config()
         self.refresh_token = self.config.get("refresh_token", "") or DEFAULT_TOKEN
         self.return_count = self.config.get("return_count", 1)
+        self.proxy = self.config.get("proxy", "")
         self.authenticated = False
-
-        # 只在用户主动配置代理时才使用，默认直连
-        if self.proxy:
-            self.api = AppPixivAPI(proxies={'https': self.proxy})
-        else:
-            self.api = AppPixivAPI()  # 直连
+        self.api = None
 
     def _load_config(self) -> Dict[str, Any]:
         try:
