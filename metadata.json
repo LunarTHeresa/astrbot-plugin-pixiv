@@ -1,6 +1,6 @@
 {
   "name": "pixiv",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "Pixiv 插件（官方API）- 搜索、排行榜、推荐，分离常规和R18指令",
   "author": "LunarTheresa",
   "repo": "https://github.com/LunarTHeresa/astrbot-plugin-pixiv",
