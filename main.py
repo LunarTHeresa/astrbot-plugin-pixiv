@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional
 
 # 默认配置
 DEFAULT_TOKEN = "PsamcKHObWOhaTvoA3CsMOM-a_3xBIRJeirDr08VuHU"
-DEFAULT_PROXY = "http://127.0.0.1:7897"
+DEFAULT_PROXY = "http://host.docker.internal:7897"
 
 @register("pixiv", "Pixiv 图片查看插件（官方API）", "3.1.0", "LunarTheresa")
 class PixivPlugin(Star):
