@@ -1,7 +1,5 @@
 """
-AstrBot Pixiv 插件 - 使用官方 API (pixivpy3)
-需要配置 refresh_token，支持搜索、排行榜、推荐等功能
-分离常规指令和 R18 指令
+AstrBot Pixiv Plugin - ByPassSniApi
 """
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
@@ -10,70 +8,68 @@ import asyncio
 from pixivpy3 import ByPassSniApi, AppPixivAPI, PixivError
 from typing import Dict, Any, Optional
 
-# 默认配置
 DEFAULT_TOKEN = "PsamcKHObWOhaTvoA3CsMOM-a_3xBIRJeirDr08VuHU"
 
-@register("pixiv", "Pixiv 图片查看插件（官方API）", "3.2.0", "LunarTheresa")
+
+@register("pixiv", "Pixiv Plugin", "3.2.1", "LunarTheresa")
 class PixivPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
-        self.config = self._load_config()
-        self.refresh_token = self.config.get("refresh_token", "") or DEFAULT_TOKEN
-        self.return_count = self.config.get("return_count", 1)
-        self.proxy = self.config.get("proxy", "")
+        self.proxy = ""
+        self.return_count = 1
+        self.refresh_token = DEFAULT_TOKEN
         self.authenticated = False
         self.api = None
-
-    def _load_config(self) -> Dict[str, Any]:
         try:
-            return self.context.get_config()
+            cfg = self.context.get_config()
+            if cfg:
+                self.refresh_token = cfg.get("refresh_token", "") or DEFAULT_TOKEN
+                self.return_count = cfg.get("return_count", 1)
+                self.proxy = cfg.get("proxy", "")
         except Exception:
-            return {}
+            pass
 
     def _create_api(self):
         if self.proxy:
-            logger.info(f"Pixiv 插件：使用代理模式 {self.proxy}")
-            return AppPixivAPI(proxies={'https': self.proxy})
-        logger.info("Pixiv 插件：使用 ByPassSniApi 绕过模式")
+            logger.info("Pixiv: proxy mode " + self.proxy)
+            return AppPixivAPI(proxies={"https": self.proxy})
+        logger.info("Pixiv: ByPassSniApi mode")
         api = ByPassSniApi()
         hosts = api.require_appapi_hosts()
         if hosts:
-            logger.info(f"Pixiv 插件：DNS over HTTPS 解析成功 -> {hosts}")
+            logger.info("Pixiv: DoH resolved -> " + str(hosts))
         else:
-            logger.warning("Pixiv 插件：DoH 解析失败，尝试使用已知 IP")
+            logger.warning("Pixiv: DoH failed, using known IP")
             api.hosts = "https://210.140.131.188"
         return api
 
     async def initialize(self):
         if not self.refresh_token:
-            logger.error("Pixiv 插件：未配置 refresh_token")
+            logger.error("Pixiv: no refresh_token configured")
             return
         try:
             self.api = await asyncio.to_thread(self._create_api)
             await asyncio.to_thread(self.api.auth, refresh_token=self.refresh_token)
             self.authenticated = True
-            logger.info(f"Pixiv 插件已加载 - 用户ID: {self.api.user_id}")
+            logger.info("Pixiv: authenticated, user_id=" + str(self.api.user_id))
         except PixivError as e:
-            logger.error(f"Pixiv API 认证失败: {e}")
-            logger.error("请检查 refresh_token 或配置 proxy")
+            logger.error("Pixiv auth failed: " + str(e))
         except Exception as e:
-            logger.error(f"Pixiv 插件初始化失败: {e}", exc_info=True)
+            logger.error("Pixiv init failed: " + str(e), exc_info=True)
 
-    def _format_illust(self, illust: dict) -> str:
-        """格式化作品信息"""
-        msg = f"标题: {illust.get('title', '无标题')}\n"
-        msg += f"作者: {illust.get('user', {}).get('name', '未知')}\n"
-        msg += f"ID: {illust.get('id')}\n"
-        tags = [t.get('name', '') for t in illust.get('tags', [])[:5]]
+    def _format_illust(self, illust):
+        msg = "Title: " + illust.get("title", "N/A") + "\n"
+        msg += "Author: " + illust.get("user", {}).get("name", "N/A") + "\n"
+        msg += "ID: " + str(illust.get("id")) + "\n"
+        tags = [t.get("name", "") for t in illust.get("tags", [])[:5]]
         if tags:
-            msg += f"标签: {', '.join(tags)}\n"
-        msg += f"链接: https://www.pixiv.net/artworks/{illust.get('id')}\n"
+            msg += "Tags: " + ", ".join(tags) + "\n"
+        msg += "URL: https://www.pixiv.net/artworks/" + str(illust.get("id")) + "\n"
         if illust.get("x_restrict", 0) > 0:
             msg += "R-18\n"
         return msg
 
-    def _get_image_url(self, illust: dict) -> Optional[str]:
-        """获取图片URL"""
+    def _get_image_url(self, illust):
         meta = illust.get("meta_single_page", {})
         if meta.get("original_image_url"):
             return meta["original_image_url"]
@@ -84,331 +80,247 @@ class PixivPlugin(Star):
         return urls.get("large") or urls.get("medium")
 
     def _check_auth(self, event):
-        """检查认证状态"""
         if not self.authenticated:
-            return event.plain_result("Pixiv 插件未认证，请检查 refresh_token 配置")
+            return event.plain_result("Pixiv not authenticated, check refresh_token")
         return None
-
-    # ========== 常规指令（过滤 R18） ==========
 
     @filter.command("pixiv")
     async def pixiv_search(self, event: AstrMessageEvent):
-        """搜索插画（过滤R18）"""
         err = self._check_auth(event)
         if err:
             yield err
             return
-
         args = event.message_str.strip().split(maxsplit=1)
         if len(args) < 2:
-            yield event.plain_result("用法：/pixiv <关键词>")
+            yield event.plain_result("/pixiv <keyword>")
             return
-
         keyword = args[1]
         try:
-            yield event.plain_result(f"正在搜索: {keyword}...")
+            yield event.plain_result("Searching: " + keyword + "...")
             result = await asyncio.to_thread(
                 self.api.search_illust, keyword,
-                search_target='partial_match_for_tags'
+                search_target="partial_match_for_tags"
             )
             if not result or not result.get("illusts"):
-                yield event.plain_result("未找到相关插画")
+                yield event.plain_result("No results found")
                 return
-
-            # 过滤 R18
             illusts = [i for i in result["illusts"][:20] if i.get("x_restrict", 0) == 0]
             if not illusts:
-                yield event.plain_result("未找到非R18插画")
+                yield event.plain_result("No non-R18 results")
                 return
-
             illusts = illusts[:self.return_count]
-            msg = f"找到 {len(illusts)} 个结果:\n\n"
+            msg = "Found " + str(len(illusts)) + " results:\n\n"
             for idx, illust in enumerate(illusts, 1):
-                msg += f"{idx}. {self._format_illust(illust)}\n"
+                msg += str(idx) + ". " + self._format_illust(illust) + "\n"
             yield event.plain_result(msg)
-
             for illust in illusts:
                 url = self._get_image_url(illust)
                 if url:
                     yield event.image_result(url)
-
-        except PixivError as e:
-            yield event.plain_result(f"搜索失败: {e}")
         except Exception as e:
-            logger.error(f"搜索失败: {e}", exc_info=True)
-            yield event.plain_result(f"搜索失败：{str(e)[:80]}")
+            logger.error("Search failed: " + str(e), exc_info=True)
+            yield event.plain_result("Search failed: " + str(e)[:80])
 
     @filter.command("pixiv-rank")
     async def pixiv_rank(self, event: AstrMessageEvent):
-        """排行榜（过滤R18）"""
         err = self._check_auth(event)
         if err:
             yield err
             return
-
         args = event.message_str.strip().split()
         mode = args[1] if len(args) > 1 else "day"
-
         try:
-            yield event.plain_result(f"正在获取排行榜 ({mode})...")
+            yield event.plain_result("Getting ranking (" + mode + ")...")
             result = await asyncio.to_thread(self.api.illust_ranking, mode=mode)
             if not result or not result.get("illusts"):
-                yield event.plain_result("未找到排行榜数据")
+                yield event.plain_result("No ranking data")
                 return
-
-            # 过滤 R18
             illusts = [i for i in result["illusts"][:20] if i.get("x_restrict", 0) == 0]
             if not illusts:
-                yield event.plain_result("未找到非R18作品")
+                yield event.plain_result("No non-R18 works")
                 return
-
             illusts = illusts[:self.return_count]
-            msg = f"排行榜 ({mode}):\n\n"
+            msg = "Ranking (" + mode + "):\n\n"
             for idx, illust in enumerate(illusts, 1):
-                msg += f"{idx}. {self._format_illust(illust)}\n"
+                msg += str(idx) + ". " + self._format_illust(illust) + "\n"
             yield event.plain_result(msg)
-
             for illust in illusts:
                 url = self._get_image_url(illust)
                 if url:
                     yield event.image_result(url)
-
-        except PixivError as e:
-            yield event.plain_result(f"获取排行榜失败: {e}")
         except Exception as e:
-            logger.error(f"获取排行榜失败: {e}", exc_info=True)
-            yield event.plain_result(f"获取排行榜失败：{str(e)[:80]}")
+            logger.error("Ranking failed: " + str(e), exc_info=True)
+            yield event.plain_result("Ranking failed: " + str(e)[:80])
 
     @filter.command("pixiv-recommend")
     async def pixiv_recommend(self, event: AstrMessageEvent):
-        """推荐作品（过滤R18）"""
         err = self._check_auth(event)
         if err:
             yield err
             return
-
         try:
-            yield event.plain_result("正在获取推荐作品...")
+            yield event.plain_result("Getting recommendations...")
             result = await asyncio.to_thread(self.api.illust_recommended)
             if not result or not result.get("illusts"):
-                yield event.plain_result("获取推荐作品失败")
+                yield event.plain_result("No recommendations")
                 return
-
-            # 过滤 R18
             illusts = [i for i in result["illusts"][:20] if i.get("x_restrict", 0) == 0]
             if not illusts:
-                yield event.plain_result("未找到非R18推荐作品")
+                yield event.plain_result("No non-R18 recommendations")
                 return
-
             illusts = illusts[:self.return_count]
-            msg = "推荐作品:\n\n"
+            msg = "Recommendations:\n\n"
             for idx, illust in enumerate(illusts, 1):
-                msg += f"{idx}. {self._format_illust(illust)}\n"
+                msg += str(idx) + ". " + self._format_illust(illust) + "\n"
             yield event.plain_result(msg)
-
             for illust in illusts:
                 url = self._get_image_url(illust)
                 if url:
                     yield event.image_result(url)
-
-        except PixivError as e:
-            yield event.plain_result(f"获取推荐失败: {e}")
         except Exception as e:
-            logger.error(f"获取推荐失败: {e}", exc_info=True)
-            yield event.plain_result(f"获取推荐失败：{str(e)[:80]}")
+            logger.error("Recommend failed: " + str(e), exc_info=True)
+            yield event.plain_result("Recommend failed: " + str(e)[:80])
 
     @filter.command("pixiv-detail")
     async def pixiv_detail(self, event: AstrMessageEvent):
-        """作品详情"""
         err = self._check_auth(event)
         if err:
             yield err
             return
-
         args = event.message_str.strip().split()
         if len(args) < 2:
-            yield event.plain_result("用法：/pixiv-detail <作品ID>")
+            yield event.plain_result("/pixiv-detail <illust_id>")
             return
-
         illust_id = args[1]
         if not illust_id.isdigit():
-            yield event.plain_result("作品ID必须是数字")
+            yield event.plain_result("ID must be a number")
             return
-
         try:
-            yield event.plain_result(f"正在获取作品 {illust_id}...")
+            yield event.plain_result("Getting illust " + illust_id + "...")
             result = await asyncio.to_thread(self.api.illust_detail, int(illust_id))
             if not result or not result.get("illust"):
-                yield event.plain_result("未找到该作品")
+                yield event.plain_result("Illust not found")
                 return
-
             illust = result["illust"]
-            msg = f"作品详情:\n\n{self._format_illust(illust)}"
-            yield event.plain_result(msg)
-
+            yield event.plain_result(self._format_illust(illust))
             url = self._get_image_url(illust)
             if url:
                 yield event.image_result(url)
-
-        except PixivError as e:
-            yield event.plain_result(f"获取详情失败: {e}")
         except Exception as e:
-            logger.error(f"获取详情失败: {e}", exc_info=True)
-            yield event.plain_result(f"获取详情失败：{str(e)[:80]}")
-
-    # ========== R18 专用指令（只返回 R18） ==========
+            logger.error("Detail failed: " + str(e), exc_info=True)
+            yield event.plain_result("Detail failed: " + str(e)[:80])
 
     @filter.command("pixiv-r18")
     async def pixiv_search_r18(self, event: AstrMessageEvent):
-        """搜索 R18 插画"""
         err = self._check_auth(event)
         if err:
             yield err
             return
-
         args = event.message_str.strip().split(maxsplit=1)
         if len(args) < 2:
-            yield event.plain_result("用法：/pixiv-r18 <关键词>")
+            yield event.plain_result("/pixiv-r18 <keyword>")
             return
-
         keyword = args[1]
         try:
-            yield event.plain_result(f"正在搜索 R18 插画: {keyword}...")
+            yield event.plain_result("Searching R18: " + keyword + "...")
             result = await asyncio.to_thread(
                 self.api.search_illust, keyword,
-                search_target='partial_match_for_tags'
+                search_target="partial_match_for_tags"
             )
             if not result or not result.get("illusts"):
-                yield event.plain_result("未找到相关插画")
+                yield event.plain_result("No results")
                 return
-
-            # 只返回 R18
             illusts = [i for i in result["illusts"][:30] if i.get("x_restrict", 0) > 0]
             if not illusts:
-                yield event.plain_result("未找到 R18 内容")
+                yield event.plain_result("No R18 content found")
                 return
-
             illusts = illusts[:self.return_count]
-            msg = f"R18 搜索结果 ({len(illusts)}):\n\n"
+            msg = "R18 results (" + str(len(illusts)) + "):\n\n"
             for idx, illust in enumerate(illusts, 1):
-                msg += f"{idx}. {self._format_illust(illust)}\n"
+                msg += str(idx) + ". " + self._format_illust(illust) + "\n"
             yield event.plain_result(msg)
-
             for illust in illusts:
                 url = self._get_image_url(illust)
                 if url:
                     yield event.image_result(url)
-
-        except PixivError as e:
-            yield event.plain_result(f"搜索失败: {e}")
         except Exception as e:
-            logger.error(f"R18搜索失败: {e}", exc_info=True)
-            yield event.plain_result(f"搜索失败：{str(e)[:80]}")
+            logger.error("R18 search failed: " + str(e), exc_info=True)
+            yield event.plain_result("Search failed: " + str(e)[:80])
 
     @filter.command("pixiv-rank-r18")
     async def pixiv_rank_r18(self, event: AstrMessageEvent):
-        """R18 排行榜（直接使用官方 R18 榜单，保证全是 R18）"""
         err = self._check_auth(event)
         if err:
             yield err
             return
-
         args = event.message_str.strip().split()
         mode = args[1] if len(args) > 1 else "day"
-
-        # 确保使用 R18 排行榜模式
         if not mode.endswith("_r18"):
             mode = mode + "_r18"
-
         try:
-            yield event.plain_result(f"正在获取 R18 排行榜 ({mode})...")
+            yield event.plain_result("Getting R18 ranking (" + mode + ")...")
             result = await asyncio.to_thread(self.api.illust_ranking, mode=mode)
             if not result or not result.get("illusts"):
-                yield event.plain_result("未找到 R18 排行榜数据")
+                yield event.plain_result("No R18 ranking data")
                 return
-
-            # R18 排行榜本身就全是 R18，无需再过滤
             illusts = result["illusts"][:self.return_count]
-
-            msg = f"R18 排行榜 ({mode}):\n\n"
+            msg = "R18 Ranking (" + mode + "):\n\n"
             for idx, illust in enumerate(illusts, 1):
-                msg += f"{idx}. {self._format_illust(illust)}\n"
+                msg += str(idx) + ". " + self._format_illust(illust) + "\n"
             yield event.plain_result(msg)
-
             for illust in illusts:
                 url = self._get_image_url(illust)
                 if url:
                     yield event.image_result(url)
-
-        except PixivError as e:
-            yield event.plain_result(f"获取R18排行榜失败: {e}")
         except Exception as e:
-            logger.error(f"获取R18排行榜失败: {e}", exc_info=True)
-            yield event.plain_result(f"获取R18排行榜失败：{str(e)[:80]}")
+            logger.error("R18 ranking failed: " + str(e), exc_info=True)
+            yield event.plain_result("R18 ranking failed: " + str(e)[:80])
 
     @filter.command("pixiv-recommend-r18")
     async def pixiv_recommend_r18(self, event: AstrMessageEvent):
-        """R18 推荐作品"""
         err = self._check_auth(event)
         if err:
             yield err
             return
-
         try:
-            yield event.plain_result("正在获取 R18 推荐作品...")
+            yield event.plain_result("Getting R18 recommendations...")
             result = await asyncio.to_thread(self.api.illust_recommended)
             if not result or not result.get("illusts"):
-                yield event.plain_result("获取推荐作品失败")
+                yield event.plain_result("No recommendations")
                 return
-
-            # 只返回 R18
             illusts = [i for i in result["illusts"][:30] if i.get("x_restrict", 0) > 0]
             if not illusts:
-                yield event.plain_result("未找到 R18 推荐作品")
+                yield event.plain_result("No R18 recommendations")
                 return
-
             illusts = illusts[:self.return_count]
-            msg = "R18 推荐作品:\n\n"
+            msg = "R18 Recommendations:\n\n"
             for idx, illust in enumerate(illusts, 1):
-                msg += f"{idx}. {self._format_illust(illust)}\n"
+                msg += str(idx) + ". " + self._format_illust(illust) + "\n"
             yield event.plain_result(msg)
-
             for illust in illusts:
                 url = self._get_image_url(illust)
                 if url:
                     yield event.image_result(url)
-
-        except PixivError as e:
-            yield event.plain_result(f"获取R18推荐失败: {e}")
         except Exception as e:
-            logger.error(f"获取R18推荐失败: {e}", exc_info=True)
-            yield event.plain_result(f"获取R18推荐失败：{str(e)[:80]}")
-
-    # ========== 帮助 ==========
+            logger.error("R18 recommend failed: " + str(e), exc_info=True)
+            yield event.plain_result("R18 recommend failed: " + str(e)[:80])
 
     @filter.command("pixiv-help")
     async def pixiv_help(self, event: AstrMessageEvent):
-        """帮助信息"""
-        auth_status = "已认证" if self.authenticated else "未认证"
-        msg = f"""Pixiv 插件使用帮助
-
-常规指令（过滤R18）：
-/pixiv <关键词> - 搜索插画
-/pixiv-rank [模式] - 排行榜 (day/week/month)
-/pixiv-recommend - 推荐作品
-/pixiv-detail <ID> - 作品详情
-
-R18 专用指令（只返回R18）：
-/pixiv-r18 <关键词> - 搜索R18插画
-/pixiv-rank-r18 [模式] - R18排行榜 (day/week)
-/pixiv-recommend-r18 - R18推荐作品
-
-当前状态：
-- 认证: {auth_status}
-- 返回数量: {self.return_count}
-- 代理: {self.proxy or '未使用'}"""
+        auth_status = "OK" if self.authenticated else "Not authenticated"
+        mode = "Proxy: " + self.proxy if self.proxy else "ByPassSniApi"
+        msg = "Pixiv Plugin Help\n\n"
+        msg += "/pixiv <keyword> - Search\n"
+        msg += "/pixiv-rank [day/week/month] - Ranking\n"
+        msg += "/pixiv-recommend - Recommend\n"
+        msg += "/pixiv-detail <ID> - Detail\n"
+        msg += "/pixiv-r18 <keyword> - R18 Search\n"
+        msg += "/pixiv-rank-r18 [day/week] - R18 Ranking\n"
+        msg += "/pixiv-recommend-r18 - R18 Recommend\n\n"
+        msg += "Auth: " + auth_status + "\n"
+        msg += "Count: " + str(self.return_count) + "\n"
+        msg += "Mode: " + mode
         yield event.plain_result(msg)
 
     async def terminate(self):
-        """插件卸载时调用"""
-        logger.info("Pixiv 插件已卸载")
+        logger.info("Pixiv plugin unloaded")
